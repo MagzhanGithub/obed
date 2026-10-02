@@ -58,7 +58,7 @@ a.wa{display:block;margin-top:10px;padding:14px;border-radius:12px;background:#2
 <div class="tabs"><button class="on" id="t1">Заказать</button><button id="t2">Админ</button></div>
 
 <section id="buyer">
-  <div class="card"><h2>Меню на сегодня</h2><div id="menu">Загрузка…</div></div>
+  <div class="card"><h2>Меню</h2><div id="menu">Загрузка…</div></div>
   <div class="card">
     <div class="g2">
       <div><label>Ваше имя</label><input id="name" maxlength="40"></div>
@@ -85,12 +85,12 @@ a.wa{display:block;margin-top:10px;padding:14px;border-radius:12px;background:#2
     <label style="margin-top:10px">Департаменты (через запятую)</label><input id="sd">
     <button style="margin-top:10px" id="ss">Сохранить</button>
   </div>
-  <div class="card"><h2>Меню на сегодня</h2>
+  <div class="card"><h2>Меню</h2>
     <div class="g4"><div><label>Блюдо</label><input id="mn"></div><div><label>Цена ₸</label><input id="mp" type="number"></div><div><label>Порций</label><input id="mq" type="number"></div><button class="p" id="ma">+</button></div>
     <div id="mlist"></div>
     <button style="margin-top:10px" id="mc">Очистить меню (новый день)</button>
   </div>
-  <div class="card"><h2>Заказы за сегодня</h2>
+  <div class="card"><h2>Заказы</h2>
     <div class="kan"><div class="col" data-s="created"><h3>Создан</h3><div></div></div><div class="col" data-s="paid"><h3>Оплачен</h3><div></div></div></div>
   </div>
   <div class="card"><h2>Аналитика</h2><div id="stats"></div></div>
@@ -102,6 +102,7 @@ a.wa{display:block;margin-top:10px;padding:14px;border-radius:12px;background:#2
 const $=id=>document.getElementById(id);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const now=new Date(), pad=n=>String(n).padStart(2,"0");
+let CUR="";
 let TODAY=now.getFullYear()+"-"+pad(now.getMonth()+1)+"-"+pad(now.getDate());
 $("date").textContent=now.toLocaleDateString("ru-RU",{weekday:"long",day:"numeric",month:"long",year:"numeric"});
 const fmt=n=>Number(n).toLocaleString("ru-RU")+" ₸";
@@ -114,7 +115,7 @@ $("t1").onclick=()=>tab(false); $("t2").onclick=()=>tab(true);
 
 function renderBuyer(){
   const items=menu.filter(m=>m.qty>0);
-  $("menu").innerHTML=items.length?"":"<div class='msg'>Меню на сегодня ещё не добавлено.</div>";
+  $("menu").innerHTML=items.length?"":"<div class='msg'>Меню ещё не добавлено.</div>";
   items.forEach(m=>{
     const c=Math.min(cart[m.id]||0,m.qty); cart[m.id]=c;
     const d=document.createElement("div"); d.className="item";
@@ -145,7 +146,7 @@ $("go").onclick=async()=>{
   if(!name){$("msg").textContent="Введите имя.";return}
   if(!cfg.wa){$("msg").textContent="Продавец ещё не указал номер WhatsApp.";return}
   const tot=lines.reduce((s,l)=>s+l.price*l.q,0);
-  const text="Здравствуйте! Заказ на "+now.toLocaleDateString("ru-RU")+":\n"+lines.map(l=>"• "+l.name+" × "+l.q+" = "+fmt(l.price*l.q)).join("\n")+"\nИтого: "+fmt(tot)+"\nИмя: "+name+"\nДепартамент: "+dept+"\nОплатил(а) через Kaspi, чек прикладываю.";
+  const text="Здравствуйте! Заказ на "+TODAY.split("-").reverse().join(".")+":\n"+lines.map(l=>"• "+l.name+" × "+l.q+" = "+fmt(l.price*l.q)).join("\n")+"\nИтого: "+fmt(tot)+"\nИмя: "+name+"\nДепартамент: "+dept+"\nОплатил(а) через Kaspi, чек прикладываю.";
   const url="https://wa.me/"+cfg.wa.replace(/\D/g,"")+"?text="+encodeURIComponent(text);
   $("go").disabled=true;
   let w=null; try{w=window.open(url,"_blank")}catch(e){}   // открываем сразу по клику, пока браузер не блокирует
@@ -174,12 +175,12 @@ function renderAdmin(){
     armed(x,'✕',()=>db.collection("menu").doc(m.id).delete());
     $("mlist").appendChild(d);
   });
-  const today=orders.filter(o=>o.date===TODAY).sort((a,b)=>a.ts-b.ts);
+  const today=orders.filter(o=>o.date>=CUR).sort((a,b)=>a.ts-b.ts);
   ["created","paid"].forEach(s=>{
     const box=document.querySelector(".col[data-s="+s+"] div"); box.innerHTML="";
     today.filter(o=>o.status===s).forEach(o=>{
       const c=document.createElement("div"); c.className="oc"; c.draggable=true;
-      c.innerHTML="<b>"+esc(o.name)+"</b> <small>"+esc(o.dept)+"</small><br>"+o.items.map(i=>esc(i.name)+" ×"+i.q).join(", ")+"<br><b>"+fmt(o.total)+"</b><div class='a'><button>"+(s==="created"?"→ Оплачен":"← Создан")+"</button><button>Удалить</button></div>";
+      c.innerHTML="<b>"+esc(o.name)+"</b> <small>"+esc(o.dept)+" · на "+o.date.slice(8)+"."+o.date.slice(5,7)+"</small><br>"+o.items.map(i=>esc(i.name)+" ×"+i.q).join(", ")+"<br><b>"+fmt(o.total)+"</b><div class='a'><button>"+(s==="created"?"→ Оплачен":"← Создан")+"</button><button>Удалить</button></div>";
       c.ondragstart=e=>e.dataTransfer.setData("text/plain",o.id);
       const [mv,del]=c.querySelectorAll("button");
       mv.onclick=()=>setStatus(o,s==="created"?"paid":"created");
@@ -214,7 +215,7 @@ function renderStats(){
   const td=paid.filter(o=>o.date===TODAY), cut=new Date(TODAY+"T18:00:00").getTime();
   const before=td.filter(o=>pt(o)<=cut), after=td.filter(o=>pt(o)>cut);
   const dish={}; td.forEach(o=>o.items.forEach(i=>{const d=dish[i.name]=dish[i.name]||{q:0,s:0};d.q+=i.q;d.s+=i.q*i.price}));
-  let h="<div class='tiles'><div class='tile'><small>Итого за сегодня</small><b>"+fmt(sum(td))+"</b></div><div class='tile'><small>До 18:00"+(Date.now()>cut?" (итог дня)":"")+"</small><b>"+fmt(sum(before))+"</b></div><div class='tile'><small>После 18:00</small><b>"+fmt(sum(after))+"</b></div></div>";
+  let h="<div class='tiles'><div class='tile'><small>Итого за сегодня</small><b>"+fmt(sum(td))+"</b></div></div>";
   h+="<table><tr><th>Блюдо сегодня</th><th>Порций</th><th>Сумма</th></tr>"+(Object.keys(dish).map(k=>"<tr><td>"+esc(k)+"</td><td>"+dish[k].q+"</td><td>"+fmt(dish[k].s)+"</td></tr>").join("")||"<tr><td colspan=3>Нет оплаченных заказов</td></tr>")+"</table>";
   const days={}; paid.forEach(o=>(days[o.date]=days[o.date]||[]).push(o));
   h+="<table style='margin-top:14px'><tr><th>По дням</th><th>Заказов</th><th>Порций</th><th>Сумма</th></tr>"+Object.keys(days).sort().reverse().slice(0,14).map(d=>"<tr><td>"+d.split('-').reverse().join('.')+"</td><td>"+days[d].length+"</td><td>"+por(days[d])+"</td><td>"+fmt(sum(days[d]))+"</td></tr>").join("")+"</table>";
@@ -254,7 +255,8 @@ async function call(path,body){
 const db={collection:c=>({doc:id=>{const w=(op,data)=>call("write",{col:c,id,op,data}).then(refresh);return{set:d=>w("set",d),update:d=>w("update",d),delete:()=>w("delete")}}})};
 async function refresh(){
   try{
-    const s=await call("state"); TODAY=s.today; menu=s.menu.sort((x,y)=>x.id.localeCompare(y.id)); cfg={...cfg,...s.cfg}; orders=s.orders;
+    const s=await call("state"); TODAY=s.today; CUR=s.cur; menu=s.menu.sort((x,y)=>x.id.localeCompare(y.id)); cfg={...cfg,...s.cfg}; orders=s.orders;
+    $("date").textContent="Заказ на "+new Date(TODAY+"T12:00:00").toLocaleDateString("ru-RU",{weekday:"long",day:"numeric",month:"long"});
     if(tok){try{orders=(await call("admin")).orders;isAdmin=true}catch(e){if(e.status===401){tok=null;isAdmin=false;try{localStorage.removeItem("lt")}catch(_){}}}}
     $("admin").classList.toggle("in",isAdmin);
     all();

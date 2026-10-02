@@ -7,7 +7,12 @@ const sign = (s) => crypto.createHmac("sha256", SECRET).update(s).digest("hex");
 const same = (a, b) => { const x = Buffer.from(String(a)), y = Buffer.from(String(b)); return x.length === y.length && crypto.timingSafeEqual(x, y); };
 const mkToken = () => { const e = String(Date.now() + 12 * 3600e3); return e + "." + sign(e); };
 const isAdmin = (req) => { const [e, s] = (req.headers.authorization || "").replace("Bearer ", "").split("."); return !!(e && s && same(s, sign(e)) && Date.now() < +e); };
-const today = () => new Date(Date.now() + 5 * 3600e3).toISOString().slice(0, 10); // Казахстан UTC+5
+const real = () => new Date(Date.now() + 5 * 3600e3).toISOString().slice(0, 10); // сегодня (Казахстан UTC+5)
+const today = () => { // день, НА КОТОРЫЙ принимаются заказы: следующий рабочий день
+  const d = new Date(Date.now() + 5 * 3600e3);
+  do { d.setUTCDate(d.getUTCDate() + 1); } while (d.getUTCDay() === 0 || d.getUTCDay() === 6);
+  return d.toISOString().slice(0, 10);
+};
 const fails = {}; // простая защита от перебора пароля
 
 async function rows(col, filter) {
@@ -27,7 +32,7 @@ module.exports = async (req, res) => {
         rows("menu"), rows("settings"),
         rows("orders", (q) => q.eq("data->>date", today()).eq("data->>status", "paid")),
       ]);
-      return res.json({ today: today(), menu, cfg: st.find((x) => x.id === "main") || {}, orders });
+      return res.json({ today: today(), cur: real(), menu, cfg: st.find((x) => x.id === "main") || {}, orders });
     }
 
     if (a === "order" && req.method === "POST") {
